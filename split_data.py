@@ -13,11 +13,6 @@ def get_args():
     parser.add_argument('-o', type=str, default=None,
     					help='Location for output files')
 
-    parser.add_argument('-mean', type=float, default=0.0,
-    					help='factor to multiple the mean of the data')
-    
-    parser.add_argument('-std', type=float, default=2.0,
-    					help='factor to multiple the std of the data')
     args = parser.parse_args()
     
     return args
@@ -47,49 +42,45 @@ def out_dir(out):
 		return os.path.abspath(out)
 
 
-def split_data(data, size, out):
+def split_data(data, out):
 	'''
 	Save one file for each arch's run
 	'''
-	mag = data.T[1]
-	ciclo = np.zeros((mag.size,2))
+	delta = dist_module(data)
+	desvio = np.std(delta)
+	residuo = delta - desvio
+	ciclo = np.zeros((data.T[1].size,2))
 	k = 0
 	j = 0
-	for i in range(len(mag)):
+	indices = [] 
+	for i in range(len(data.T[1])):
 		try:
-			variacao = abs(mag[i+1]-mag[i])
-			if variacao < size:
+			if residuo[i] < desvio:
 				ciclo[i] = data[i]
-			elif variacao >= size:
+			elif residuo[i] >= desvio:
 				ciclo[i] = data[i]
 				k = k+1
 				np.savetxt(os.path.join(out,'ciclo_'+str(k)+'.txt'),
-							ciclo[j:(i+1)], fmt = '%s')
+						ciclo[j:(i+1)], fmt = '%s')
 				j = i + 1
 		except IndexError:
 			ciclo[i] = data[i]
 			k = k + 1
 			np.savetxt(os.path.join(out, 'ciclo_'+str(k)+'.txt'),
 						ciclo[j:], fmt='%s')
-	return None
+	return None	
 
-def min_peak(data, meann, stdd):
+
+def dist_module(data):
 	'''
-	find the smallest peak
+	Calculates the distance modulus between two points
 	'''
-	mag = data.T[1]
-	delta = np.zeros(mag.size-1)
+	pos_y = data.T[1] #utiliza apenas os dados em Y (posicao)
+	delta = np.zeros(pos_y.size-1)
 	for i in range(delta.size):
-		delta[i] = abs(mag[i+1]-mag[i])
-    
-	offset = meann*delta.mean() + stdd*delta.std()
-	delta_max = np.zeros(delta.size)
-	for i in range(delta.size):
-		if delta[i] > offset:
-			delta_max[i] = delta[i]
-        
-	masked_delta_max = np.ma.masked_equal(delta_max, 0.0, copy=False)
-	return masked_delta_max.min()
+		delta[i] = abs(pos_y[i+1]-pos_y[i])
+	return delta
+
 
 def main():
 	args = get_args()
@@ -100,8 +91,9 @@ def main():
 
 	for plasma in files:
 		data = np.array(np.loadtxt(plasma))
-		size = min_peak(data, args.mean, args.std)
-		split = split_data(data, size, out)
+		#size = min_peak(data, args.mean, args.std)
+		split = split_data(data, out)
+
 
 if __name__ == "__main__":
     exit(main())
